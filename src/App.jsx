@@ -7,6 +7,8 @@ import VideoPlayerModal from './components/VideoPlayerModal';
 import DailyTrackerModal from './components/DailyTrackerModal';
 import SettingsModal from './components/SettingsModal';
 import EditTargetModal from './components/EditTargetModal';
+import InstallModal from './components/InstallModal';
+import { usePwaInstall } from './hooks/usePwaInstall';
 
 import { 
   getSavedPlaylists, 
@@ -34,8 +36,23 @@ export default function App() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isAnalyticsModalOpen, setIsAnalyticsModalOpen] = useState(false);
+  const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
   const [playerState, setPlayerState] = useState({ isOpen: false, playlist: null, video: null });
   const [editingTargetPlaylist, setEditingTargetPlaylist] = useState(null);
+
+  // PWA Install Hook
+  const { isInstallable, isInstalled, isIOS, promptInstall } = usePwaInstall();
+
+  const handleOpenInstall = async () => {
+    if (isIOS) {
+      setIsInstallModalOpen(true);
+      return;
+    }
+    const res = await promptInstall();
+    if (!res.handled) {
+      setIsInstallModalOpen(true);
+    }
+  };
 
   useEffect(() => {
     loadData();
@@ -222,6 +239,8 @@ export default function App() {
         onOpenAddModal={() => setIsAddModalOpen(true)}
         onOpenSettings={() => setIsSettingsModalOpen(true)}
         onOpenAnalytics={() => setIsAnalyticsModalOpen(true)}
+        onOpenInstall={handleOpenInstall}
+        isInstalled={isInstalled}
       />
 
       {/* Main Container */}
@@ -368,6 +387,13 @@ export default function App() {
         onClose={() => setEditingTargetPlaylist(null)}
         playlist={editingTargetPlaylist}
         onSaveTarget={handleSaveTargetDays}
+      />
+
+      <InstallModal
+        isOpen={isInstallModalOpen}
+        onClose={() => setIsInstallModalOpen(false)}
+        onInstall={handleOpenInstall}
+        isIOS={isIOS}
       />
 
     </div>
