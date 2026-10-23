@@ -3,7 +3,6 @@ import Navbar from './components/Navbar';
 import PlaylistCard from './components/PlaylistCard';
 import PlaylistDetailView from './components/PlaylistDetailView';
 import AddPlaylistModal from './components/AddPlaylistModal';
-import VideoPlayerModal from './components/VideoPlayerModal';
 import DailyTrackerModal from './components/DailyTrackerModal';
 import SettingsModal from './components/SettingsModal';
 import EditTargetModal from './components/EditTargetModal';
@@ -37,7 +36,6 @@ export default function App() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isAnalyticsModalOpen, setIsAnalyticsModalOpen] = useState(false);
   const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
-  const [playerState, setPlayerState] = useState({ isOpen: false, playlist: null, video: null });
   const [editingTargetPlaylist, setEditingTargetPlaylist] = useState(null);
 
   // PWA Install Hook
@@ -130,13 +128,6 @@ export default function App() {
 
     const newLogs = recordStudyActivity(durationSeconds, isWatched);
     setStudyLogs(newLogs);
-
-    if (playerState.isOpen && playerState.video?.id === videoId) {
-      setPlayerState((prev) => ({
-        ...prev,
-        video: { ...prev.video, watched: isWatched },
-      }));
-    }
   };
 
   const handleMarkAllWatched = (playlistId) => {
@@ -175,13 +166,6 @@ export default function App() {
       return { ...pl, videos: updatedVideos };
     });
     updatePlaylists(updated);
-
-    if (playerState.isOpen && playerState.video?.id === videoId) {
-      setPlayerState((prev) => ({
-        ...prev,
-        video: { ...prev.video, notes },
-      }));
-    }
   };
 
   const handleSaveTargetDays = (playlistId, newTargetDays) => {
@@ -197,21 +181,6 @@ export default function App() {
   const handleSaveApiKey = (newKey) => {
     saveApiKey(newKey);
     setApiKeyState(newKey);
-  };
-
-  const handleOpenPlayer = (playlist, video) => {
-    setPlayerState({
-      isOpen: true,
-      playlist,
-      video,
-    });
-  };
-
-  const handleSelectVideoInPlayer = (video) => {
-    setPlayerState((prev) => ({
-      ...prev,
-      video,
-    }));
   };
 
   const streakData = calculateStreak(studyLogs);
@@ -250,7 +219,6 @@ export default function App() {
             playlist={activePlaylist}
             onBack={() => setView('list')}
             onToggleVideo={handleToggleVideo}
-            onOpenPlayer={handleOpenPlayer}
             onEditTarget={(pl) => setEditingTargetPlaylist(pl)}
             onMarkAllWatched={handleMarkAllWatched}
             onResetProgress={handleResetProgress}
@@ -356,16 +324,6 @@ export default function App() {
         onAddPlaylist={handleAddPlaylist}
         apiKey={apiKey}
         onOpenSettings={() => setIsSettingsModalOpen(true)}
-      />
-
-      <VideoPlayerModal
-        isOpen={playerState.isOpen}
-        onClose={() => setPlayerState((prev) => ({ ...prev, isOpen: false }))}
-        playlist={playerState.playlist}
-        currentVideo={playerState.video}
-        onSelectVideo={handleSelectVideoInPlayer}
-        onToggleWatched={handleToggleVideo}
-        onSaveNotes={handleSaveNotes}
       />
 
       <DailyTrackerModal
