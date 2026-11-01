@@ -169,6 +169,7 @@ export async function fetchPlaylistFromApi(playlistId, apiKey) {
           durationMap[item.id] = {
             seconds: durSeconds,
             formatted: formatDuration(durSeconds),
+            publishedAt: item.snippet?.publishedAt || '',
           };
         });
       }
@@ -187,7 +188,7 @@ export async function fetchPlaylistFromApi(playlistId, apiKey) {
         return null;
       }
 
-      const durObj = durationMap[vid] || { seconds: 600, formatted: '10m' };
+      const durObj = durationMap[vid] || { seconds: 600, formatted: '10m', publishedAt: '' };
       totalPlaylistSeconds += durObj.seconds;
 
       const thumb =
@@ -195,6 +196,8 @@ export async function fetchPlaylistFromApi(playlistId, apiKey) {
         item.snippet?.thumbnails?.medium?.url ||
         item.snippet?.thumbnails?.default?.url ||
         `https://img.youtube.com/vi/${vid}/mqdefault.jpg`;
+
+      const uploadDate = durObj.publishedAt || item.snippet?.publishedAt || item.contentDetails?.videoPublishedAt || '';
 
       return {
         id: vid,
@@ -204,13 +207,30 @@ export async function fetchPlaylistFromApi(playlistId, apiKey) {
         thumbnail: thumb,
         durationSeconds: durObj.seconds,
         durationFormatted: durObj.formatted,
-        publishedAt: item.snippet?.publishedAt || '',
+        publishedAt: uploadDate,
         watched: false,
         watchedAt: null,
         notes: '',
       };
     })
     .filter(Boolean);
+
+  // Sort chronologically by upload date so the oldest video (Lecture 1) is at the top
+  processedVideos.sort((a, b) => {
+    if (a.publishedAt && b.publishedAt) {
+      const timeA = new Date(a.publishedAt).getTime();
+      const timeB = new Date(b.publishedAt).getTime();
+      if (!isNaN(timeA) && !isNaN(timeB)) {
+        return timeA - timeB;
+      }
+    }
+    return 0;
+  });
+
+  // Re-assign 1-based sequential position numbers based on chronological study order
+  processedVideos.forEach((v, idx) => {
+    v.position = idx + 1;
+  });
 
   return {
     id: playlistId,

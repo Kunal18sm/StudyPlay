@@ -13,7 +13,8 @@ import {
   ExternalLink,
   RefreshCw,
   Check,
-  AlertCircle
+  AlertCircle,
+  ArrowUpDown
 } from 'lucide-react';
 import { calculatePacing } from '../utils/calculator';
 import { getSpeedCalculations, formatDuration } from '../utils/youtubeApi';
@@ -32,6 +33,7 @@ export default function PlaylistDetailView({
   const [activeSpeed, setActiveSpeed] = useState('1.0x');
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState(null);
+  const [sortOrder, setSortOrder] = useState('oldest'); // 'oldest' (First uploaded at top) | 'newest'
 
   if (!playlist) return null;
 
@@ -52,9 +54,6 @@ export default function PlaylistDetailView({
   const speedOptions = getSpeedCalculations(playlist.totalSeconds || 0);
   const selectedSpeedObj = speedOptions.find((s) => s.speed === activeSpeed) || speedOptions[0];
 
-  // Next video to continue
-  const nextVideo = playlist.videos?.find((v) => !v.watched);
-
   // Filter and search videos
   const filteredVideos = (playlist.videos || []).filter((video) => {
     const matchesFilter =
@@ -65,6 +64,29 @@ export default function PlaylistDetailView({
       String(video.position).includes(searchQuery);
     return matchesFilter && matchesSearch;
   });
+
+  // Sort videos according to selected order (Default: Oldest / First uploaded at top)
+  const sortedVideos = [...filteredVideos].sort((a, b) => {
+    if (sortOrder === 'newest') {
+      if (a.publishedAt && b.publishedAt) {
+        const timeA = new Date(a.publishedAt).getTime();
+        const timeB = new Date(b.publishedAt).getTime();
+        if (!isNaN(timeA) && !isNaN(timeB)) return timeB - timeA;
+      }
+      return (Number(b.position) || 0) - (Number(a.position) || 0);
+    }
+
+    // Default 'oldest': Earliest uploaded video at the top
+    if (a.publishedAt && b.publishedAt) {
+      const timeA = new Date(a.publishedAt).getTime();
+      const timeB = new Date(b.publishedAt).getTime();
+      if (!isNaN(timeA) && !isNaN(timeB)) return timeA - timeB;
+    }
+    return (Number(a.position) || 0) - (Number(b.position) || 0);
+  });
+
+  // Next video to continue (chronologically next uncompleted lecture)
+  const nextVideo = sortedVideos.find((v) => !v.watched);
 
   const handleToggle = (videoId, currentWatched, durationSeconds) => {
     const willBeWatched = !currentWatched;
@@ -299,42 +321,54 @@ export default function PlaylistDetailView({
       <div className="space-y-3">
         
         {/* Search & Filter Header */}
-        <div className="flex items-center justify-between gap-3 text-xs">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 text-xs">
           
-          <div className="flex items-center space-x-1 bg-[#161821] p-1 rounded-lg border border-[#232733]">
+          <div className="flex items-center space-x-1.5 flex-wrap gap-y-1.5">
+            <div className="flex items-center space-x-1 bg-[#161821] p-1 rounded-lg border border-[#232733]">
+              <button
+                onClick={() => setFilter('all')}
+                className={`px-3 py-1 rounded text-xs font-medium transition ${
+                  filter === 'all'
+                    ? 'bg-[#232733] text-white'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                All ({playlist.videos?.length || 0})
+              </button>
+              <button
+                onClick={() => setFilter('remaining')}
+                className={`px-3 py-1 rounded text-xs font-medium transition ${
+                  filter === 'remaining'
+                    ? 'bg-[#232733] text-white'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Remaining ({pacing.remainingVideos})
+              </button>
+              <button
+                onClick={() => setFilter('watched')}
+                className={`px-3 py-1 rounded text-xs font-medium transition ${
+                  filter === 'watched'
+                    ? 'bg-[#232733] text-white'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Watched ({watchedVideosCount})
+              </button>
+            </div>
+
+            {/* Sort Toggle Button */}
             <button
-              onClick={() => setFilter('all')}
-              className={`px-3 py-1 rounded text-xs font-medium transition ${
-                filter === 'all'
-                  ? 'bg-[#232733] text-white'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
+              onClick={() => setSortOrder(sortOrder === 'oldest' ? 'newest' : 'oldest')}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-[#161821] border border-[#232733] hover:border-slate-600 text-xs text-slate-300 hover:text-white transition font-medium"
+              title="Toggle upload order"
             >
-              All ({playlist.videos?.length || 0})
-            </button>
-            <button
-              onClick={() => setFilter('remaining')}
-              className={`px-3 py-1 rounded text-xs font-medium transition ${
-                filter === 'remaining'
-                  ? 'bg-[#232733] text-white'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Remaining ({pacing.remainingVideos})
-            </button>
-            <button
-              onClick={() => setFilter('watched')}
-              className={`px-3 py-1 rounded text-xs font-medium transition ${
-                filter === 'watched'
-                  ? 'bg-[#232733] text-white'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Watched ({watchedVideosCount})
+              <ArrowUpDown className="w-3.5 h-3.5 text-blue-400" />
+              <span>{sortOrder === 'oldest' ? 'Oldest First (1 → N)' : 'Newest First (N → 1)'}</span>
             </button>
           </div>
 
-          <div className="relative w-56 sm:w-64">
+          <div className="relative w-full sm:w-56">
             <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
             <input
               type="text"
@@ -349,13 +383,14 @@ export default function PlaylistDetailView({
 
         {/* Video rows */}
         <div className="space-y-1.5">
-          {filteredVideos.length === 0 ? (
+          {sortedVideos.length === 0 ? (
             <div className="text-center py-8 bg-[#161821] rounded-xl border border-[#232733] text-slate-500 text-xs">
               No videos found
             </div>
           ) : (
-            filteredVideos.map((video) => {
+            sortedVideos.map((video, idx) => {
               const isWatched = Boolean(video.watched);
+              const displayPosition = sortOrder === 'oldest' ? (idx + 1) : (sortedVideos.length - idx);
               return (
                 <div
                   key={video.id || video.position}
@@ -384,8 +419,8 @@ export default function PlaylistDetailView({
                       )}
                     </button>
 
-                    <span className="font-mono text-xs text-slate-500 w-5 shrink-0">
-                      {video.position}
+                    <span className="font-mono text-xs text-slate-500 w-6 shrink-0">
+                      #{displayPosition}
                     </span>
 
                     {/* Thumbnail: Opens directly in YouTube */}
@@ -417,6 +452,14 @@ export default function PlaylistDetailView({
                       </h4>
                       <div className="flex items-center space-x-2 mt-0.5 text-[11px] text-slate-500 font-mono">
                         <span>{video.durationFormatted || formatDuration(video.durationSeconds)}</span>
+                        {video.publishedAt && (
+                          <>
+                            <span>•</span>
+                            <span className="text-slate-500">
+                              {new Date(video.publishedAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </span>
+                          </>
+                        )}
                         {video.notes && (
                           <span className="text-blue-400 flex items-center space-x-0.5">
                             <FileText className="w-3 h-3" />

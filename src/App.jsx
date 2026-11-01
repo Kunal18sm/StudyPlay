@@ -57,8 +57,31 @@ export default function App() {
     loadData();
   }, []);
 
+  const ensureOldestFirst = (pl) => {
+    if (!pl || !pl.videos || pl.videos.length < 2) return pl;
+    const vFirst = pl.videos[0];
+    const vLast = pl.videos[pl.videos.length - 1];
+    if (vFirst.publishedAt && vLast.publishedAt) {
+      const tFirst = new Date(vFirst.publishedAt).getTime();
+      const tLast = new Date(vLast.publishedAt).getTime();
+      if (!isNaN(tFirst) && !isNaN(tLast) && tFirst > tLast) {
+        const sorted = [...pl.videos].sort((a, b) => {
+          const tA = new Date(a.publishedAt).getTime();
+          const tB = new Date(b.publishedAt).getTime();
+          return tA - tB;
+        });
+        sorted.forEach((v, idx) => {
+          v.position = idx + 1;
+        });
+        return { ...pl, videos: sorted };
+      }
+    }
+    return pl;
+  };
+
   const loadData = () => {
-    const loadedPlaylists = getSavedPlaylists();
+    const rawPlaylists = getSavedPlaylists();
+    const loadedPlaylists = rawPlaylists.map(ensureOldestFirst);
     const loadedActiveId = getActivePlaylistId(loadedPlaylists);
     const loadedApiKey = getApiKey();
     const loadedLogs = getStudyLogs();
@@ -75,18 +98,19 @@ export default function App() {
   };
 
   const handleAddPlaylist = (newPlaylist) => {
-    const existsIndex = playlists.findIndex((p) => p.id === newPlaylist.id);
+    const normalized = ensureOldestFirst(newPlaylist);
+    const existsIndex = playlists.findIndex((p) => p.id === normalized.id);
     let updated;
     if (existsIndex >= 0) {
       updated = [...playlists];
-      updated[existsIndex] = newPlaylist;
+      updated[existsIndex] = normalized;
     } else {
-      updated = [newPlaylist, ...playlists];
+      updated = [normalized, ...playlists];
     }
 
     updatePlaylists(updated);
-    setActiveId(newPlaylist.id);
-    setActivePlaylistId(newPlaylist.id);
+    setActiveId(normalized.id);
+    setActivePlaylistId(normalized.id);
     setView('detail');
   };
 
