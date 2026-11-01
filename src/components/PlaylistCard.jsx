@@ -1,13 +1,16 @@
-import React from 'react';
-import { Clock, Video, Trash2, Edit3, ArrowRight } from 'lucide-react';
+import React, { useState } from 'react';
+import { Clock, Video, Trash2, Edit3, ArrowRight, RefreshCw } from 'lucide-react';
 import { calculatePacing } from '../utils/calculator';
 
 export default function PlaylistCard({ 
   playlist, 
   onSelect, 
   onEditTarget, 
-  onDelete 
+  onDelete,
+  onSync 
 }) {
+  const [isSyncing, setIsSyncing] = useState(false);
+
   const watchedVideos = playlist.videos?.filter((v) => v.watched).length || 0;
   const watchedSeconds = playlist.videos
     ?.filter((v) => v.watched)
@@ -21,6 +24,17 @@ export default function PlaylistCard({
     targetDays: playlist.targetDays || 30,
     createdAt: playlist.createdAt,
   });
+
+  const handleSyncClick = async (e) => {
+    e.stopPropagation();
+    if (isSyncing || !onSync) return;
+    setIsSyncing(true);
+    try {
+      await onSync(playlist.id);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   return (
     <div 
@@ -96,6 +110,14 @@ export default function PlaylistCard({
           </div>
 
           <div className="flex items-center space-x-1" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={handleSyncClick}
+              disabled={isSyncing}
+              className="p-1 rounded text-slate-400 hover:text-emerald-400 hover:bg-[#232733] transition"
+              title="Sync with latest YouTube playlist"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-emerald-400' : ''}`} />
+            </button>
             <button
               onClick={() => onEditTarget(playlist)}
               className="p-1 rounded text-slate-400 hover:text-white hover:bg-[#232733] transition"

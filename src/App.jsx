@@ -20,6 +20,7 @@ import {
   recordStudyActivity 
 } from './utils/storage';
 import { calculateStreak } from './utils/calculator';
+import { syncPlaylistWithYouTube } from './utils/youtubeApi';
 import { Plus, Search, BookOpen } from 'lucide-react';
 
 export default function App() {
@@ -183,6 +184,29 @@ export default function App() {
     setApiKeyState(newKey);
   };
 
+  const handleSyncPlaylist = async (playlistId) => {
+    const pl = playlists.find((p) => p.id === playlistId);
+    if (!pl) return { success: false, error: 'Playlist not found.' };
+
+    try {
+      const result = await syncPlaylistWithYouTube(pl, apiKey);
+      const updated = playlists.map((p) => (p.id === playlistId ? result.updatedPlaylist : p));
+      updatePlaylists(updated);
+      return {
+        success: true,
+        newVideosAdded: result.newVideosAdded,
+        diffCount: result.diffCount,
+        totalVideos: result.totalVideos,
+      };
+    } catch (err) {
+      console.error('Sync failed:', err);
+      return {
+        success: false,
+        error: err.message || 'Could not sync with YouTube.',
+      };
+    }
+  };
+
   const streakData = calculateStreak(studyLogs);
   const activePlaylist = playlists.find((p) => p.id === activeId) || playlists[0];
   const categories = ['All', ...new Set(playlists.map((p) => p.category).filter(Boolean))];
@@ -222,6 +246,7 @@ export default function App() {
             onEditTarget={(pl) => setEditingTargetPlaylist(pl)}
             onMarkAllWatched={handleMarkAllWatched}
             onResetProgress={handleResetProgress}
+            onSyncPlaylist={handleSyncPlaylist}
           />
         ) : (
           /* Multi-Playlist Dashboard */
@@ -303,6 +328,7 @@ export default function App() {
                     }}
                     onEditTarget={(playlistToEdit) => setEditingTargetPlaylist(playlistToEdit)}
                     onDelete={handleDeletePlaylist}
+                    onSync={handleSyncPlaylist}
                   />
                 ))}
               </div>

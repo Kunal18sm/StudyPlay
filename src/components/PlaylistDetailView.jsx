@@ -10,7 +10,10 @@ import {
   Edit3, 
   RotateCcw, 
   FileText,
-  ExternalLink
+  ExternalLink,
+  RefreshCw,
+  Check,
+  AlertCircle
 } from 'lucide-react';
 import { calculatePacing } from '../utils/calculator';
 import { getSpeedCalculations, formatDuration } from '../utils/youtubeApi';
@@ -21,11 +24,14 @@ export default function PlaylistDetailView({
   onBack, 
   onToggleVideo, 
   onEditTarget, 
-  onResetProgress 
+  onResetProgress,
+  onSyncPlaylist
 }) {
   const [filter, setFilter] = useState('all'); // 'all' | 'remaining' | 'watched'
   const [searchQuery, setSearchQuery] = useState('');
   const [activeSpeed, setActiveSpeed] = useState('1.0x');
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState(null);
 
   if (!playlist) return null;
 
@@ -76,6 +82,51 @@ export default function PlaylistDetailView({
     }
   };
 
+  // Handle Sync with YouTube
+  const handleSync = async () => {
+    if (isSyncing || !onSyncPlaylist) return;
+    setIsSyncing(true);
+    setSyncStatus(null);
+
+    try {
+      const res = await onSyncPlaylist(playlist.id);
+      if (res && res.success) {
+        if (res.diffCount > 0) {
+          setSyncStatus({
+            type: 'success',
+            message: `Synced with YouTube! Added ${res.diffCount} new video(s).`,
+          });
+          triggerConfetti();
+        } else if (res.diffCount < 0) {
+          setSyncStatus({
+            type: 'info',
+            message: `Synced! Playlist now has ${res.totalVideos} videos (${Math.abs(res.diffCount)} removed on YouTube).`,
+          });
+        } else {
+          setSyncStatus({
+            type: 'success',
+            message: `Playlist is already up to date with YouTube (${res.totalVideos} videos).`,
+          });
+        }
+      } else {
+        setSyncStatus({
+          type: 'error',
+          message: res?.error || 'Sync failed. Could not fetch YouTube updates.',
+        });
+      }
+    } catch (e) {
+      setSyncStatus({
+        type: 'error',
+        message: e.message || 'Sync failed.',
+      });
+    } finally {
+      setIsSyncing(false);
+      setTimeout(() => {
+        setSyncStatus(null);
+      }, 5000);
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-5 animate-fade-in">
       
@@ -90,6 +141,17 @@ export default function PlaylistDetailView({
         </button>
 
         <div className="flex items-center space-x-2">
+          {/* Refresh / Sync with YouTube button */}
+          <button
+            onClick={handleSync}
+            disabled={isSyncing}
+            className="flex items-center space-x-1.5 text-xs text-slate-300 hover:text-white px-3 py-1.5 rounded-lg bg-[#161821] border border-[#232733] hover:bg-[#202330] hover:border-emerald-500/40 transition disabled:opacity-50"
+            title="Fetch latest videos from YouTube playlist"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isSyncing ? 'animate-spin' : ''}`} />
+            <span>{isSyncing ? 'Checking...' : 'Sync Playlist'}</span>
+          </button>
+
           <button
             onClick={() => onEditTarget(playlist)}
             className="flex items-center space-x-1 text-xs text-slate-300 hover:text-white px-3 py-1.5 rounded-lg bg-[#161821] border border-[#232733] hover:bg-[#202330] transition"
@@ -108,6 +170,30 @@ export default function PlaylistDetailView({
           </button>
         </div>
       </div>
+
+      {/* Sync Status Feedback Toast / Banner */}
+      {syncStatus && (
+        <div className={`p-2.5 rounded-lg text-xs flex items-center justify-between border transition-all animate-fade-in ${
+          syncStatus.type === 'error'
+            ? 'bg-rose-950/40 border-rose-800/60 text-rose-300'
+            : 'bg-emerald-950/40 border-emerald-800/60 text-emerald-300'
+        }`}>
+          <div className="flex items-center space-x-2">
+            {syncStatus.type === 'error' ? (
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+            ) : (
+              <Check className="w-4 h-4 shrink-0 text-emerald-400" />
+            )}
+            <span>{syncStatus.message}</span>
+          </div>
+          <button 
+            onClick={() => setSyncStatus(null)}
+            className="text-slate-400 hover:text-white ml-2 text-xs"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Main Course Info Card */}
       <div className="p-5 rounded-xl bg-[#161821] border border-[#232733] space-y-4">

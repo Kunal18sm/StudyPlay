@@ -324,6 +324,97 @@ export function createManualPlaylist({ title, totalVideos, avgMinutesPerVideo, t
 }
 
 /**
+ * Syncs an existing playlist with the latest videos on YouTube.
+ * Preserves user's progress (watched status, watchedAt, and personal notes).
+ */
+export async function syncPlaylistWithYouTube(existingPlaylist, apiKey) {
+  if (!existingPlaylist || !existingPlaylist.id) {
+    throw new Error('Playlist data is missing or invalid.');
+  }
+
+  if (existingPlaylist.id.startsWith('custom_')) {
+    throw new Error('Custom courses cannot be synced with YouTube.');
+  }
+
+  // 1. Fetch fresh data from YouTube API (or fallback mirror)
+  let freshData;
+  try {
+    freshData = await fetchPlaylistFromApi(existingPlaylist.id, apiKey);
+  } catch (err) {
+    try {
+      freshData = await fetchPlaylistPublicFallback(existingPlaylist.id);
+    } catch {
+      throw err;
+    }
+  }
+
+  if (!freshData || !freshData.videos || freshData.videos.length === 0) {
+    throw new Error('No videos returned from YouTube for this playlist.');
+  }
+
+  // 2. Map existing video progress by video ID or position/youtubeId
+  const progressMap = new Map();
+  (existingPlaylist.videos || []).forEach((v) => {
+    const key = v.id || v.youtubeId;
+    const progressObj = {
+      watched: Boolean(v.watched),
+      watchedAt: v.watchedAt || null,
+      notes: v.notes || '',
+    };
+    if (key) progressMap.set(key, progressObj);
+    if (v.youtubeId) progressMap.set(v.youtubeId, progressObj);
+  });
+
+  // 3. Merge videos while preserving user progress
+  let newVideosAdded = 0;
+  const mergedVideos = freshData.videos.map((vid, idx) => {
+    const existing = progressMap.get(vid.id) || (vid.youtubeId ? progressMap.get(vid.youtubeId) : null);
+    if (existing) {
+      return {
+        ...vid,
+        position: idx + 1,
+        watched: existing.watched,
+        watchedAt: existing.watchedAt,
+        notes: existing.notes,
+      };
+    } else {
+      newVideosAdded++;
+      return {
+        ...vid,
+        position: idx + 1,
+        watched: false,
+        watchedAt: null,
+        notes: '',
+      };
+    }
+  });
+
+  const previousCount = existingPlaylist.videos?.length || 0;
+  const newCount = mergedVideos.length;
+  const diffCount = newCount - previousCount;
+
+  const updatedPlaylist = {
+    ...existingPlaylist,
+    title: freshData.title || existingPlaylist.title,
+    channel: freshData.channel || existingPlaylist.channel,
+    thumbnail: freshData.thumbnail || existingPlaylist.thumbnail,
+    totalVideos: newCount,
+    totalSeconds: freshData.totalSeconds,
+    totalDurationFormatted: freshData.totalDurationFormatted,
+    videos: mergedVideos,
+    updatedAt: new Date().toISOString(),
+    lastSyncedAt: new Date().toISOString(),
+  };
+
+  return {
+    updatedPlaylist,
+    newVideosAdded,
+    diffCount,
+    totalVideos: newCount,
+  };
+}
+
+/**
  * Built-in Curated Demo Playlists
  */
 export const DEMO_PLAYLISTS = [
