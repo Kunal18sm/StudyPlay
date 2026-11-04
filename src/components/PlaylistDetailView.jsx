@@ -14,7 +14,8 @@ import {
   RefreshCw,
   Check,
   AlertCircle,
-  ArrowUpDown
+  ArrowUpDown,
+  Copy
 } from 'lucide-react';
 import { calculatePacing } from '../utils/calculator';
 import { getSpeedCalculations, formatDuration } from '../utils/youtubeApi';
@@ -34,6 +35,8 @@ export default function PlaylistDetailView({
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState(null);
   const [sortOrder, setSortOrder] = useState('oldest'); // 'oldest' (First uploaded at top) | 'newest'
+  const [copiedVideoId, setCopiedVideoId] = useState(null);
+  const [copiedPlaylist, setCopiedPlaylist] = useState(false);
 
   if (!playlist) return null;
 
@@ -104,6 +107,64 @@ export default function PlaylistDetailView({
     }
   };
 
+  // Copy Video Link (1-click)
+  const handleCopyVideoLink = async (video, e) => {
+    e?.stopPropagation();
+    const vidId = video.youtubeId || video.id;
+    if (!vidId) return;
+    const url = `https://www.youtube.com/watch?v=${vidId}`;
+
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = url;
+        textArea.style.position = 'fixed';
+        textArea.style.opacity = '0';
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      setCopiedVideoId(vidId);
+      setTimeout(() => {
+        setCopiedVideoId((curr) => (curr === vidId ? null : curr));
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to copy video link:', err);
+    }
+  };
+
+  // Copy Playlist Link (1-click)
+  const handleCopyPlaylistLink = async (e) => {
+    e?.stopPropagation();
+    const pId = playlist.id;
+    if (!pId) return;
+    const url = `https://www.youtube.com/playlist?list=${pId}`;
+
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = url;
+        textArea.style.position = 'fixed';
+        textArea.style.opacity = '0';
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      setCopiedPlaylist(true);
+      setTimeout(() => {
+        setCopiedPlaylist(false);
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to copy playlist link:', err);
+    }
+  };
+
   // Handle Sync with YouTube
   const handleSync = async () => {
     if (isSyncing || !onSyncPlaylist) return;
@@ -163,6 +224,29 @@ export default function PlaylistDetailView({
         </button>
 
         <div className="flex items-center space-x-2">
+          {/* Copy Playlist Link button */}
+          <button
+            onClick={handleCopyPlaylistLink}
+            className={`flex items-center space-x-1.5 text-xs px-3 py-1.5 rounded-lg border transition ${
+              copiedPlaylist
+                ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800/60'
+                : 'bg-[#161821] text-slate-300 hover:text-white border-[#232733] hover:bg-[#202330]'
+            }`}
+            title="Copy YouTube playlist URL"
+          >
+            {copiedPlaylist ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-emerald-400 font-mono">Copied!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5 text-slate-400" />
+                <span className="hidden sm:inline">Copy Link</span>
+              </>
+            )}
+          </button>
+
           {/* Refresh / Sync with YouTube button */}
           <button
             onClick={handleSync}
@@ -229,15 +313,33 @@ export default function PlaylistDetailView({
           </div>
 
           {nextVideo && (
-            <button
-              onClick={() => handleOpenYouTube(nextVideo)}
-              className="flex items-center space-x-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs transition shrink-0"
-              title="Open next video on YouTube"
-            >
-              <Play className="w-3.5 h-3.5 fill-white" />
-              <span>{watchedVideosCount === 0 ? 'Start on YouTube' : `Play #${nextVideo.position} on YouTube`}</span>
-              <ExternalLink className="w-3 h-3 ml-0.5 opacity-80" />
-            </button>
+            <div className="flex items-center space-x-2 shrink-0">
+              <button
+                onClick={(e) => handleCopyVideoLink(nextVideo, e)}
+                className={`p-2 rounded-lg border transition text-xs font-medium ${
+                  copiedVideoId === (nextVideo.youtubeId || nextVideo.id)
+                    ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800/60'
+                    : 'bg-[#1e222e] hover:bg-[#282d3d] text-slate-300 border-[#2b3040]'
+                }`}
+                title="Copy next video link"
+              >
+                {copiedVideoId === (nextVideo.youtubeId || nextVideo.id) ? (
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                ) : (
+                  <Copy className="w-3.5 h-3.5 text-slate-400" />
+                )}
+              </button>
+
+              <button
+                onClick={() => handleOpenYouTube(nextVideo)}
+                className="flex items-center space-x-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs transition"
+                title="Open next video on YouTube"
+              >
+                <Play className="w-3.5 h-3.5 fill-white" />
+                <span>{watchedVideosCount === 0 ? 'Start on YouTube' : `Play #${nextVideo.position} on YouTube`}</span>
+                <ExternalLink className="w-3 h-3 ml-0.5 opacity-80" />
+              </button>
+            </div>
           )}
         </div>
 
@@ -471,16 +573,40 @@ export default function PlaylistDetailView({
 
                   </div>
 
-                  {/* Play on YouTube Button */}
-                  <button
-                    onClick={() => handleOpenYouTube(video)}
-                    className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-[#202330] hover:bg-red-950/40 hover:text-red-400 border border-transparent hover:border-red-900/50 text-slate-300 text-xs font-medium transition shrink-0"
-                    title="Watch on YouTube"
-                  >
-                    <Play className="w-3 h-3 fill-current text-red-500" />
-                    <span className="hidden sm:inline">YouTube</span>
-                    <ExternalLink className="w-3 h-3 text-slate-500" />
-                  </button>
+                  {/* Action Buttons: Copy Link & Watch on YouTube */}
+                  <div className="flex items-center space-x-1.5 shrink-0">
+                    <button
+                      onClick={(e) => handleCopyVideoLink(video, e)}
+                      className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition ${
+                        copiedVideoId === (video.youtubeId || video.id)
+                          ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800/60'
+                          : 'bg-[#202330] hover:bg-[#282d3d] text-slate-400 hover:text-slate-200 border-[#2a2f3f] hover:border-slate-500'
+                      }`}
+                      title={copiedVideoId === (video.youtubeId || video.id) ? 'Link Copied!' : 'Copy YouTube video link'}
+                    >
+                      {copiedVideoId === (video.youtubeId || video.id) ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          <span className="text-[11px] font-mono text-emerald-400">Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline text-[11px]">Copy Link</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => handleOpenYouTube(video)}
+                      className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-[#202330] hover:bg-red-950/40 hover:text-red-400 border border-[#2a2f3f] hover:border-red-900/50 text-slate-300 text-xs font-medium transition"
+                      title="Watch on YouTube"
+                    >
+                      <Play className="w-3 h-3 fill-current text-red-500" />
+                      <span className="hidden sm:inline">YouTube</span>
+                      <ExternalLink className="w-3 h-3 text-slate-500" />
+                    </button>
+                  </div>
 
                 </div>
               );

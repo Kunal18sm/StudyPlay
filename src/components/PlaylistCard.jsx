@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Clock, Video, Trash2, Edit3, ArrowRight, RefreshCw } from 'lucide-react';
+import { Clock, Video, Trash2, Edit3, ArrowRight, RefreshCw, Copy, Check } from 'lucide-react';
 import { calculatePacing } from '../utils/calculator';
 
 export default function PlaylistCard({ 
@@ -10,6 +10,30 @@ export default function PlaylistCard({
   onSync 
 }) {
   const [isSyncing, setIsSyncing] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyPlaylistLink = async (e) => {
+    e.stopPropagation();
+    const url = `https://www.youtube.com/playlist?list=${playlist.id}`;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = url;
+        textArea.style.position = 'fixed';
+        textArea.style.opacity = '0';
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy playlist link:', err);
+    }
+  };
 
   const watchedVideos = playlist.videos?.filter((v) => v.watched).length || 0;
   const watchedSeconds = playlist.videos
@@ -110,6 +134,17 @@ export default function PlaylistCard({
           </div>
 
           <div className="flex items-center space-x-1" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={handleCopyPlaylistLink}
+              className={`p-1 rounded transition ${
+                copied
+                  ? 'text-emerald-400 bg-emerald-950/40'
+                  : 'text-slate-400 hover:text-white hover:bg-[#232733]'
+              }`}
+              title={copied ? 'Playlist Link Copied!' : 'Copy YouTube playlist link'}
+            >
+              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+            </button>
             <button
               onClick={handleSyncClick}
               disabled={isSyncing}
